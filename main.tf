@@ -8,12 +8,12 @@ locals {
 
 resource "aws_s3_bucket" "s3_bucket" {
     bucket = local.bucket_name
+    force_destroy = true
     tags = {
         "Name" = "aws_s3_bucket.s3_bucket.id"
         "Description" = "Demo Bucket for hosting the static website"
-        "CreatedBy" = "Stackguardian"
+        "CreatedBy" = "StackGuardian"
     }
-      
 }
 
 resource "aws_s3_bucket_website_configuration" "s3_bucket" {
@@ -31,7 +31,7 @@ resource "aws_s3_bucket_cors_configuration" "s3_bucket" {
 
   cors_rule {
     allowed_headers = ["*"]
-    allowed_methods = ["GET", "HEAD"]
+    allowed_methods = ["GET", "HEAD", "POST"]
     allowed_origins = ["*"]
     expose_headers  = ["ETag"]
     max_age_seconds = 3000
@@ -53,7 +53,7 @@ resource "aws_s3_bucket_ownership_controls" "s3_bucket_acl_ownership" {
 }
 
 resource "aws_iam_user" "s3_bucket" {
-  name = "s3-bucket"
+  name = local.bucket_name
 }
 
 resource "aws_s3_bucket_public_access_block" "example" {
@@ -96,13 +96,11 @@ resource "aws_s3_bucket_policy" "s3_bucket" {
   
   depends_on = [aws_s3_bucket_public_access_block.example]
 }
-
-#resource "aws_s3_object" "content_files" {
-#    for_each = fileset("${path.module}/content", "**/*")
-#    bucket = aws_s3_bucket.s3_bucket.bucket
-#    acl = "public-read"
-#    key = each.key
-#    source = "${path.module}/content/${each.key}"
-#    depends_on = [ aws_s3_bucket.s3_bucket ]
-#    content_type = "text/html" 
-#}
+resource "null_resource" "upload_to_s3" {
+    triggers = {
+      always_run = "${timestamp()}"
+    }
+    provisioner "local-exec" {
+        command = "find ${path.module}/content -type f -exec sed -i 's/helloWorld/${var.shop_name}/g' {} + && aws s3 sync ./content/ s3://${aws_s3_bucket.s3_bucket.bucket}/"      
+    }
+}
