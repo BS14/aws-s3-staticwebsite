@@ -11,3 +11,7 @@ output "website_endpoint" {
   description = "The sample website URL"
   value       = "http://${aws_s3_bucket_website_configuration.s3_bucket.website_endpoint}"
 }
+
+/* output "debug_content_type" {
+  value = [for key, value in var.mime_types : { file = key, content_type = value }]
+} */

@@ -49,14 +49,14 @@ resource "aws_s3_bucket_ownership_controls" "s3_bucket_acl_ownership" {
   rule {
     object_ownership = "BucketOwnerPreferred"
   }
-  depends_on = [aws_s3_bucket_public_access_block.example]
+  depends_on = [aws_s3_bucket_public_access_block.publicaccess]
 }
 
 resource "aws_iam_user" "s3_bucket" {
   name = local.bucket_name
 }
 
-resource "aws_s3_bucket_public_access_block" "example" {
+resource "aws_s3_bucket_public_access_block" "publicaccess" {
   bucket = aws_s3_bucket.s3_bucket.id
 
   block_public_acls       = false
@@ -94,13 +94,40 @@ resource "aws_s3_bucket_policy" "s3_bucket" {
     ]
   })
 
-  depends_on = [aws_s3_bucket_public_access_block.example]
+  depends_on = [aws_s3_bucket_public_access_block.publicaccess]
 }
-resource "null_resource" "upload_to_s3" {
+/* resource "null_resource" "modify_files" {
   triggers = {
     always_run = "${timestamp()}"
   }
   provisioner "local-exec" {
     command = "find ${path.module}/content -type f -exec sed -i 's/helloWorld/${var.shop_name}/g' {} + && aws s3 sync ./content/ s3://${aws_s3_bucket.s3_bucket.bucket}/"
+    #command = "find ${path.module}/content -type f -exec sed -i 's/helloWorld/${var.shop_name}/g' {} +"
   }
+} */
+
+/* resource "null_resource" "copy_modified_files" {
+  triggers = {
+    always_run = "${timestamp()}"
+  }
+  depends_on = [null_resource.modify_files]
+
+  provisioner "local-exec" {
+    command = "cp -r ${path.module}/content ${path.module}/modified_content"
+  }
+} */
+
+resource "aws_s3_object" "copy_content" {
+  for_each = fileset(path.module, "content/**")
+  bucket   = aws_s3_bucket.s3_bucket.bucket
+  key      = basename(each.value)  # Set key to the base name of the file
+  source   = "${each.value}" # Set source to the local path of the file
+  # Determines the content type (MIME type) of the uploaded file.
+# Uses var.mime_types to look up the content type based on the file's base name.
+# If no match is found, defaults to "application/octet-stream".
+  content_type = coalesce(
+    lookup(var.mime_types, basename(each.value), null),
+    "application/octet-stream"
+  )
+  depends_on = [ aws_s3_bucket.s3_bucket ]
 }
